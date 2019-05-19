@@ -70,7 +70,7 @@ def CreateVideo(clip,Dataframe,pcutoff,dotsize,colormap,DLCscorer,bodyparts2plot
             df_likelihood[bpindex,:]=Dataframe[DLCscorer][bp]['likelihood'].values
             df_x[bpindex,:]=Dataframe[DLCscorer][bp]['x'].values
             df_y[bpindex,:]=Dataframe[DLCscorer][bp]['y'].values
-        
+
         for index in tqdm(range(nframes)):
             image = clip.load_frame()
             if cropping:
@@ -89,7 +89,8 @@ def CreateVideo(clip,Dataframe,pcutoff,dotsize,colormap,DLCscorer,bodyparts2plot
             clip.save_frame(frame)
         clip.close()
 
-def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alphavalue,pcutoff,cropping,x1,x2,y1,y2,delete,DLCscorer,bodyparts2plot,outputframerate,Frames2plot):
+
+def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alphavalue,pcutoff,cropping,x1,x2,y1,y2,delete,DLCscorer,bodyparts2plot,outputframerate,Frames2plot,behavior=None,behavior_measure=None):  # AVH
     ''' Creating individual frames with labeled body parts and making a video'''
     #scorer=np.unique(Dataframe.columns.get_level_values(0))[0]
     #bodyparts2plot = list(np.unique(Dataframe.columns.get_level_values(1)))
@@ -98,11 +99,11 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
         ny, nx= y2-y1,x2-x1
     else:
         ny, nx= clip.height(), clip.width()
-    
+
     fps=clip.fps()
     if  outputframerate is None: #by def. same as input rate.
         outputframerate=clip.fps()
-    
+
     nframes = len(Dataframe.index)
     duration = nframes/fps
 
@@ -116,12 +117,12 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
         df_likelihood[bpindex,:]=Dataframe[DLCscorer][bp]['likelihood'].values
         df_x[bpindex,:]=Dataframe[DLCscorer][bp]['x'].values
         df_y[bpindex,:]=Dataframe[DLCscorer][bp]['y'].values
-    
-    
+
+
     nframes_digits=int(np.ceil(np.log10(nframes)))
     if nframes_digits>9:
         raise Exception("Your video has more than 10**9 frames, we recommend chopping it up.")
-    
+
     if Frames2plot==None:
         Index=range(nframes)
     else:
@@ -129,7 +130,7 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
         for k in Frames2plot:
             if k>=0 and k<nframes:
                 Index.append(int(k))
-            
+
     for index in tqdm(range(nframes)):
         imagename = tmpfolder + "/file"+str(index).zfill(nframes_digits)+".png"
         if os.path.isfile(imagename):
@@ -145,7 +146,7 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
                 plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
                 plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
                 plt.imshow(image)
-    
+
                 for bpindex, bp in enumerate(bodyparts2plot):
                     if df_likelihood[bpindex,index] > pcutoff:
                         plt.scatter(
@@ -154,7 +155,15 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
                             s=dotsize**2,
                             color=colors(bpindex),
                             alpha=alphavalue)
-    
+                # AVH start
+                # True if Odd Number
+                if(bool(behavior[index])):
+                    color_box_behavior = "green" #green if behavior is present
+                else:
+                    color_box_behavior = "red"
+                plt.text(10,30,"Activity",bbox=dict(facecolor=color_box_behavior, alpha=0.5)) #AVH
+                plt.text(10,80,str(round(behavior_measure[index],4)),bbox=dict(facecolor=color_box_behavior, alpha=0.5)) #AVH#plt.Polygon((df_x[,index],df_y[bpindex,index]),(df_x[bpindex,index],df_y[bpindex,index]),(df_x[bpindex,index],df_y[bpindex,index])) Seria tuanis hacer un poligono, como el de tomas
+                # AVH end
                 plt.xlim(0, nx)
                 plt.ylim(0, ny)
                 plt.axis('off')
@@ -162,17 +171,17 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
                     left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
                 plt.gca().invert_yaxis()
                 plt.savefig(imagename)
-    
+
                 plt.close("all")
-    
+
     start= os.getcwd()
     os.chdir(tmpfolder)
     print("All labeled frames were created, now generating video...")
     #vname=str(Path(tmpfolder).stem).split('-')[1]
     ## One can change the parameters of the video creation script below:
     # See ffmpeg user guide: http://ffmpeg.org/ffmpeg.html#Video-and-Audio-file-format-conversion
-    # 
-    try: 
+    #
+    try:
         subprocess.call([
             'ffmpeg', '-framerate',
             str(clip.fps()), '-i', 'file%0'+str(nframes_digits)+'d.png', '-r', str(outputframerate),'../'+videooutname])
@@ -184,7 +193,8 @@ def CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,dotsize,colormap,alpha
             os.remove(file_name)
     os.chdir(start)
 
-def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetindex=0,filtered=False,save_frames=False,Frames2plot=None,delete=False,displayedbodyparts='all',codec='mp4v',outputframerate=None, destfolder=None):
+
+def create_labeled_video(config, videos, videotype='avi',shuffle=1,trainingsetindex=0,filtered=False,save_frames=False,Frames2plot=None,delete=False,displayedbodyparts='all',codec='mp4v',outputframerate=None, destfolder=None, behavior=None, behavior_measure=None):
     """
     Labels the bodyparts in a video. Make sure the video is already analyzed by the function 'analyze_video'
 
@@ -195,7 +205,7 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
 
     videos : list
         A list of strings containing the full paths to videos for analysis or a path to the directory, where all the videos with same extension are stored.
-    
+
     videotype: string, optional
         Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
 
@@ -207,7 +217,7 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
 
     filtered: bool, default false
     Boolean variable indicating if filtered output should be plotted rather than frame-by-frame predictions. Filtered version can be calculated with deeplabcut.filterpredictions
-    
+
 
     videotype: string, optional
         Checks for the extension of the video in case the input is a directory.\nOnly videos with this extension are analyzed. The default is ``.avi``
@@ -218,7 +228,7 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
 
     Frames2plot: List of indices
         If not None & save_frames=True then the frames corresponding to the index will be plotted. For example, Frames2plot=[0,11] will plot the first and the 12th frame.
-        
+
     delete: bool
         If true then the individual frames created during the video generation will be deleted.
 
@@ -228,12 +238,12 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
         E.g. ['hand','Joystick'] for the demo Reaching-Mackenzie-2018-08-30/config.yaml to select only these two body parts.
 
     codec: codec for labeled video. Options see http://www.fourcc.org/codecs.php [depends on your ffmpeg installation.]
-    
+
     outputframerate: positive number, output frame rate for labeled video (only available for the mode with saving frames.) By default: None, which results in the original video rate.
-    
+
     destfolder: string, optional
-        Specifies the destination folder that was used for storing analysis data (default is the path of the video). 
-    
+        Specifies the destination folder that was used for storing analysis data (default is the path of the video).
+
     Examples
     --------
     If you want to create the labeled video for only 1 video
@@ -263,16 +273,16 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
     DLCscorer = auxiliaryfunctions.GetScorerName(cfg,shuffle,trainFraction) #automatically loads corresponding model (even training iteration based on snapshot index)
 
     bodyparts=auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(cfg,displayedbodyparts)
-    
+
     Videos=auxiliaryfunctions.Getlistofvideos(videos,videotype)
     for video in Videos:
-        
+
         if destfolder is None:
             #videofolder = str(Path(video).parents[0])
             videofolder= Path(video).parents[0] #where your folder with videos is.
         else:
             videofolder=destfolder
-            
+
         os.chdir(str(videofolder))
         videotype = Path(video).suffix
         print("Starting % ", videofolder, videos)
@@ -281,8 +291,8 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
             videooutname=os.path.join(vname + DLCscorer+'filtered_labeled.mp4')
         else:
             videooutname=os.path.join(vname + DLCscorer+'_labeled.mp4')
-        
-        
+
+
         if os.path.isfile(os.path.join(str(videofolder),videooutname)):
             print("Labeled video already created.")
         else:
@@ -300,33 +310,33 @@ def create_labeled_video(config,videos,videotype='avi',shuffle=1,trainingsetinde
                         print("No filtered predictions found, using frame-by-frame output instead.")
                         Dataframe = pd.read_hdf(os.path.join(videofolder,dataname))
                 datanames=[dataname]
-                
+
             except FileNotFoundError:
                 datanames=[fn for fn in os.listdir(videofolder) if (vname in fn) and (".h5" in fn) and "resnet" in fn]
                 if len(datanames)==0:
                     print("The video was not analyzed with this scorer:", DLCscorer)
                     print("No other scorers were found, please run AnalysisVideos.py first.")
-                    
+
                 elif len(datanames)>0:
                     print("The video was not analyzed with this scorer:", DLCscorer)
                     print("Other scorers were found, however:", datanames)
                     print("Creating plots for:", datanames[0]," instead.")
-                    
+
                     Dataframe = pd.read_hdf(datanames[0])
                     metadata=auxiliaryfunctions.LoadVideoMetadata(datanames[0])
-                    
+
             if len(datanames)>0:
                 #Loading cropping data used during analysis
                 cropping=metadata['data']["cropping"]
                 [x1,x2,y1,y2]=metadata['data']["cropping_parameters"]
                 print(cropping,x1,x2,y1,y2)
-                
+
                 if save_frames==True:
                     tmpfolder = os.path.join(str(videofolder),'temp-' + vname)
                     auxiliaryfunctions.attempttomakefolder(tmpfolder)
                     clip = vp(video)
                     #CreateVideoSlow(clip,Dataframe,tmpfolder,cfg["dotsize"],cfg["colormap"],cfg["alphavalue"],cfg["pcutoff"],cfg["cropping"],cfg["x1"],cfg["x2"],cfg["y1"],cfg["y2"],delete,DLCscorer,bodyparts)
-                    CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,cfg["dotsize"],cfg["colormap"],cfg["alphavalue"],cfg["pcutoff"],cropping,x1,x2,y1,y2,delete,DLCscorer,bodyparts,outputframerate,Frames2plot)
+                    CreateVideoSlow(videooutname,clip,Dataframe,tmpfolder,cfg["dotsize"],cfg["colormap"],cfg["alphavalue"],cfg["pcutoff"],cropping,x1,x2,y1,y2,delete,DLCscorer,bodyparts,outputframerate,Frames2plot,behavior,behavior_measure)
                 else:
                     clip = vp(fname = video,sname = videooutname,codec=codec)
                     if cropping:
